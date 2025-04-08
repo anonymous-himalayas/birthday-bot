@@ -139,7 +139,7 @@ async def check_birthdays():
         for name, date in guild_bdays.items():
             if date == today and name not in already_pinged:
                 
-                channel = discord.utils.get(guild.text_channels, name="general")
+                channel = discord.utils.get(guild.text_channels, name="announcements")
                 if channel:
                     await channel.send(f"@everyone It's **{name.title()}**'s birthday today! 🎉🎉🎉",
                                         allowed_mentions=discord.AllowedMentions(everyone=True))
