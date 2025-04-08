@@ -12,6 +12,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID")) 
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+client = discord.Client(intents=discord.Intents.default())
 
 BIRTHDAYS = "birthdays.json"
 
@@ -24,21 +25,56 @@ def load_birthdays():
     
 def save_birthdays(bdays):
     with open(BIRTHDAYS, "w") as f:
-        json.dump(bdays, f)
+        json.dump(bdays, f, indent=4)
 
+def is_valid_date(date_str):
+    try:
+        datetime.datetime.strptime(date_str, "%m/%d")
+        return True
+    except ValueError:
+        return False
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
     check_birthdays.start()
 
-
-@bot.command()
-async def add_birthday(ctx, user: discord.Member, date: str):
+@bot.command(name="list-birthdays")
+async def list_birthdays(ctx):
     bdays = load_birthdays()
-    bdays[str(user.id)] = date
+    
+    if not bdays:
+        await ctx.send("No birthdays have been added yet.")
+        return
+
+    bday_list = "\n".join([f"{name}: {date}" for name, date in bdays.items()])
+    
+    
+    await ctx.send(f"**Birthday List:**\n```{bday_list}```")
+
+
+@bot.command(name="add-birthday")
+async def add_birthday(ctx, name: str, date: str):
+    if not is_valid_date(date):
+        await ctx.send("Please use the MM/DD date format (e.g., 09/25).")
+        return
+
+    bdays = load_birthdays()
+
+    bdays[name] = date
     save_birthdays(bdays)
-    await ctx.send(f"Birthday added for {user.name} on {date}")
+    await ctx.send(f"Birthday for **{name}** added on {date}")
+
+@bot.command(name="remove-birthday")
+async def remove_birthday(ctx, name: str):
+    bdays = load_birthdays()
+    
+    if name.lower() in bdays:
+        del bdays[name.lower()]
+        save_birthdays(bdays)
+        await ctx.send(f"Birthday for **{name}** removed.")
+    else:
+        await ctx.send(f"No birthday found for **{name}**.")
 
 @tasks.loop(hours=24)
 async def check_birthdays():
