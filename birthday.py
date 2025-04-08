@@ -4,7 +4,7 @@ import datetime
 import json
 import os
 from dotenv import load_dotenv
-
+import atexit
 
 load_dotenv()
 
@@ -22,10 +22,19 @@ def load_birthdays():
             return json.load(f)
     except FileNotFoundError:
         return {}
-    
+
 def save_birthdays(bdays):
     with open(BIRTHDAYS, "w") as f:
         json.dump(bdays, f, indent=4)
+
+def get_guild_birthdays(guild_id):
+    all_bdays = load_birthdays()
+    return all_bdays.get(str(guild_id), {})
+
+def set_guild_birthdays(guild_id, guild_bdays):
+    all_bdays = load_birthdays()
+    all_bdays[str(guild_id)] = guild_bdays
+    save_birthdays(all_bdays)
 
 def is_valid_date(date_str):
     try:
@@ -41,7 +50,7 @@ async def on_ready():
 
 @bot.command(name="list-birthdays")
 async def list_birthdays(ctx):
-    bdays = load_birthdays()
+    bdays = get_guild_birthdays(ctx.guild.id)
     
     if not bdays:
         await ctx.send("No birthdays have been added yet.")
@@ -59,10 +68,11 @@ async def add_birthday(ctx, name: str, date: str):
         await ctx.send("Please use the MM/DD date format (e.g., 09/25).")
         return
 
-    bdays = load_birthdays()
-
+    guild_id = ctx.guild.id
+    bdays = get_guild_birthdays(guild_id)
     bdays[name] = date
-    save_birthdays(bdays)
+    set_guild_birthdays(guild_id, bdays)
+
     await ctx.send(f"Birthday for **{name}** added on {date}")
 
 @bot.command(name="remove-birthday")
@@ -93,6 +103,13 @@ async def before_check():
     now = datetime.datetime.now()
     future = datetime.datetime.combine(now + datetime.timedelta(days=1), datetime.time.min)
     await discord.utils.sleep_until(future)
+
+@atexit.register
+def cleanup():
+    if os.path.exists(BIRTHDAYS):
+        with open(BIRTHDAYS, 'w') as file:
+            json.dump({}, file)
+
 
 if __name__ == "__main__":
     bot.run(TOKEN)
