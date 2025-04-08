@@ -69,7 +69,7 @@ async def add_birthday(ctx, name: str, date: str):
 async def remove_birthday(ctx, name: str):
     bdays = load_birthdays()
     
-    if name.lower() in bdays:
+    if name in bdays:
         del bdays[name.lower()]
         save_birthdays(bdays)
         await ctx.send(f"Birthday for **{name}** removed.")
