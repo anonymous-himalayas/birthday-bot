@@ -5,6 +5,7 @@ import json
 import os
 from dotenv import load_dotenv
 import atexit
+import re
 
 load_dotenv()
 
@@ -12,9 +13,10 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID")) 
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
-client = discord.Client(intents=discord.Intents.default())
+notified = {}
 
 BIRTHDAYS = "birthdays.json"
+
 
 def load_birthdays():
     try:
@@ -23,18 +25,22 @@ def load_birthdays():
     except FileNotFoundError:
         return {}
 
+
 def save_birthdays(bdays):
     with open(BIRTHDAYS, "w") as f:
         json.dump(bdays, f, indent=4)
+
 
 def get_guild_birthdays(guild_id):
     all_bdays = load_birthdays()
     return all_bdays.get(str(guild_id), {})
 
+
 def set_guild_birthdays(guild_id, guild_bdays):
     all_bdays = load_birthdays()
     all_bdays[str(guild_id)] = guild_bdays
     save_birthdays(all_bdays)
+
 
 def is_valid_date(date_str):
     try:
@@ -47,6 +53,7 @@ def is_valid_date(date_str):
 async def on_ready():
     print(f"Logged in as {bot.user}")
     check_birthdays.start()
+
 
 @bot.command(name="list-birthdays")
 async def list_birthdays(ctx):
@@ -63,46 +70,92 @@ async def list_birthdays(ctx):
 
 
 @bot.command(name="add-birthday")
-async def add_birthday(ctx, name: str, date: str):
-    if not is_valid_date(date):
-        await ctx.send("Please use the MM/DD date format (e.g., 09/25).")
+async def add_birthday(ctx, *, args):
+    # ?sd2d2 raah
+    pattern = r'"(.*?)"\s+(\d{2}/\d{2})'
+    matches = re.findall(pattern, args)
+    
+    if not matches:
+        await ctx.send("No valid name/date pairs found. Use: `!add-birthday \"Name\" MM/DD`")
         return
 
-    guild_id = ctx.guild.id
-    bdays = get_guild_birthdays(guild_id)
-    bdays[name] = date
-    set_guild_birthdays(guild_id, bdays)
+    guild_id = str(ctx.guild.id)
+    all_bdays = load_birthdays()
+    guild_bdays = all_bdays.get(guild_id, {})
 
-    await ctx.send(f"Birthday for **{name}** added on {date}")
+    added = []
+    skipped = []
+
+    for name, date in matches:
+        if is_valid_date(date):
+            guild_bdays[name] = date
+            added.append(f"{name}: {date}")
+        else:
+            skipped.append(f"{name}: Invalid date format")
+
+    all_bdays[guild_id] = guild_bdays
+    save_birthdays(all_bdays)
+
+    msg = ""
+    if added:
+        msg += "**Birthdays added:**\n" + "\n".join(added)
+    if skipped:
+        msg += "\n**Skipped entries:**\n" + "\n".join(skipped)
+
+    await ctx.send(msg)
+
+
+
 
 @bot.command(name="remove-birthday")
 async def remove_birthday(ctx, name: str):
     bdays = load_birthdays()
     
     if name in bdays:
-        del bdays[name.lower()]
+        del bdays[name]
         save_birthdays(bdays)
         await ctx.send(f"Birthday for **{name}** removed.")
     else:
         await ctx.send(f"No birthday found for **{name}**.")
 
-@tasks.loop(hours=24)
+
+
+@bot.event
+async def on_ready():
+    print(f"🎉 Logged in as {bot.user}")
+    check_birthdays.start()
+
+
+@tasks.loop(seconds=1)
 async def check_birthdays():
-    today = datetime.datetime.now().strftime("%m-%d")
-    bdays = load_birthdays()
-    for user_id, bday in bdays.items():
-        if bday == today:
-            owner = await bot.fetch_user(OWNER_ID)
-            user = await bot.fetch_user(int(user_id))
-            await owner.send(f"@everyone It's {user.name}'s birthday today!", allowed_mentions=discord.AllowedMentions(everyone=True))
+    today = datetime.datetime.now().strftime("%m/%d")
+    all_bdays = load_birthdays()
+
+    for guild in bot.guilds:
+        guild_id = str(guild.id)
+        guild_bdays = all_bdays.get(guild_id, {})
+        already_pinged = notified.setdefault(guild_id, set())
+
+        for name, date in guild_bdays.items():
+            if date == today and name not in already_pinged:
+                
+                channel = discord.utils.get(guild.text_channels, name="general")
+                if channel:
+                    await channel.send(f"@everyone It's **{name.title()}**'s birthday today! 🎉🎉🎉",
+                                        allowed_mentions=discord.AllowedMentions(everyone=True))
+                    already_pinged.add(name)
 
 
-@check_birthdays.before_loop
-async def before_check():
+@tasks.loop(hours=24)
+async def reset_notifications():
+    notified.clear()
 
-    now = datetime.datetime.now()
-    future = datetime.datetime.combine(now + datetime.timedelta(days=1), datetime.time.min)
-    await discord.utils.sleep_until(future)
+
+@bot.event
+async def on_ready():
+    check_birthdays.start()
+    reset_notifications.start()
+
 
 @atexit.register
 def cleanup():
