@@ -59,6 +59,7 @@ async def on_ready():
 async def list_birthdays(ctx):
     bdays = get_guild_birthdays(ctx.guild.id)
     
+    bdays = dict(sorted(bdays.items(), key=lambda item: datetime.datetime.strptime(item[1], "%m/%d"))) 
     if not bdays:
         await ctx.send("No birthdays have been added yet.")
         return
@@ -109,11 +110,15 @@ async def add_birthday(ctx, *, args):
 
 @bot.command(name="remove-birthday")
 async def remove_birthday(ctx, name: str):
-    bdays = load_birthdays()
+    guild_id = str(ctx.guild.id)
+    all_bdays = load_birthdays()
+    guild_bdays = all_bdays.get(guild_id, {})
     
-    if name in bdays:
-        del bdays[name]
-        save_birthdays(bdays)
+    if name in guild_bdays.keys():
+        del guild_bdays[name]
+        all_bdays[guild_id] = guild_bdays
+        save_birthdays(all_bdays)
+        notified[guild_id].discard(name)
         await ctx.send(f"Birthday for **{name}** removed.")
     else:
         await ctx.send(f"No birthday found for **{name}**.")
@@ -122,7 +127,7 @@ async def remove_birthday(ctx, name: str):
 
 @bot.event
 async def on_ready():
-    print(f"🎉 Logged in as {bot.user}")
+    print(f"Logged in as {bot.user}")
     check_birthdays.start()
 
 
