@@ -131,7 +131,7 @@ async def on_ready():
     check_birthdays.start()
 
 
-@tasks.loop(seconds=1)
+@tasks.loop(minutes=1)
 async def check_birthdays():
     today = datetime.datetime.now().strftime("%m/%d")
     all_bdays = load_birthdays()
@@ -139,7 +139,8 @@ async def check_birthdays():
     for guild in bot.guilds:
         guild_id = str(guild.id)
         guild_bdays = all_bdays.get(guild_id, {})
-        already_pinged = notified.setdefault(guild_id, set())
+        already_pinged = notified.get(guild_id, set())
+        notified[guild_id] = already_pinged
 
         for name, date in guild_bdays.items():
             if date == today and name not in already_pinged:
@@ -151,7 +152,7 @@ async def check_birthdays():
                     already_pinged.add(name)
 
 
-@tasks.loop(hours=24)
+@tasks.loop(time=60*60*24)
 async def reset_notifications():
     notified.clear()
 
