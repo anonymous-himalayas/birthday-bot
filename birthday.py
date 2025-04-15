@@ -58,7 +58,7 @@ async def on_ready():
 @bot.command(name="list-birthdays")
 async def list_birthdays(ctx):
     bdays = get_guild_birthdays(ctx.guild.id)
-    
+
     bdays = dict(sorted(bdays.items(), key=lambda item: datetime.datetime.strptime(item[1], "%m/%d"))) 
     if not bdays:
         await ctx.send("No birthdays have been added yet.")
@@ -152,9 +152,11 @@ async def check_birthdays():
                     already_pinged.add(name)
 
 
-@tasks.loop(time=60*60*24)
+@tasks.loop(time=datetime.time(0, 0, 0))
 async def reset_notifications():
-    notified.clear()
+    for guild_id in notified.keys():
+        notified[guild_id].clear()
+
 
 
 @bot.event
