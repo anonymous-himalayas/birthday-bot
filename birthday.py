@@ -53,6 +53,7 @@ def is_valid_date(date_str):
 async def on_ready():
     print(f"Logged in as {bot.user}")
     check_birthdays.start()
+    reset_notifications.start()
 
 
 @bot.command(name="list-birthdays")
@@ -125,12 +126,6 @@ async def remove_birthday(ctx, name: str):
 
 
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
-    check_birthdays.start()
-
-
 @tasks.loop(minutes=1)
 async def check_birthdays():
     today = datetime.datetime.now().strftime("%m/%d")
@@ -158,11 +153,6 @@ async def reset_notifications():
         notified[guild_id].clear()
 
 
-
-@bot.event
-async def on_ready():
-    check_birthdays.start()
-    reset_notifications.start()
 
 
 @atexit.register
