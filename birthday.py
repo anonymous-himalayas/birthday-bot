@@ -52,8 +52,10 @@ def is_valid_date(date_str):
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    check_birthdays.start()
-    reset_notifications.start()
+    if not check_birthdays.is_running():
+        check_birthdays.start()
+    if not reset_notifications.is_running():
+        reset_notifications.start()
 
 
 @bot.command(name="list-birthdays")
