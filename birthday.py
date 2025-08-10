@@ -15,7 +15,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot is running!"
+    return "OK", 200
 
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
