@@ -128,7 +128,7 @@ async def remove_birthday(ctx, name: str):
 
 
 
-@tasks.loop(minutes=1)
+@tasks.loop(minutes=5)
 async def check_birthdays():
     today = datetime.datetime.now().strftime("%m/%d")
     all_bdays = load_birthdays()
@@ -136,17 +136,22 @@ async def check_birthdays():
     for guild in bot.guilds:
         guild_id = str(guild.id)
         guild_bdays = all_bdays.get(guild_id, {})
-        already_pinged = notified.get(guild_id, set())
-        notified[guild_id] = already_pinged
+
+        # Make sure the guild has a set for tracking reported birthdays
+        if guild_id not in notified:
+            notified[guild_id] = set()
+
+        already_pinged = notified[guild_id]
 
         for name, date in guild_bdays.items():
             if date == today and name not in already_pinged:
-                
                 channel = discord.utils.get(guild.text_channels, name="announcements")
                 if channel:
-                    await channel.send(f"@everyone It's **{name.title()}**'s birthday today! 🎉🎉🎉",
-                                        allowed_mentions=discord.AllowedMentions(everyone=True))
-                    already_pinged.add(name)
+                    await channel.send(
+                        f"@everyone It's **{name.title()}**'s birthday today! 🎉🎉🎉",
+                        allowed_mentions=discord.AllowedMentions(everyone=True)
+                    )
+                    already_pinged.add(name)  # Mark as reported
 
 
 @tasks.loop(time=datetime.time(0, 0, 0))
