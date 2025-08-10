@@ -6,7 +6,23 @@ import os
 from dotenv import load_dotenv
 import atexit
 import re
+from flask import Flask
+import threading
 
+
+# Mini Flask Server
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+
+# Discord Bot
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -170,4 +186,7 @@ def cleanup():
 
 
 if __name__ == "__main__":
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
     bot.run(TOKEN)
