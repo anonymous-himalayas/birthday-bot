@@ -6,20 +6,20 @@ import os
 from dotenv import load_dotenv
 import atexit
 import re
-from flask import Flask
-import threading
-import time
+# from flask import Flask
+# import threading
+# import time
 
 # Mini Flask Server
-app = Flask(__name__)
+# app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "OK", 200
+# @app.route('/')
+# def home():
+#     return "OK", 200
 
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+# def run_flask():
+#     port = int(os.environ.get("PORT", 5000))
+#     app.run(host="0.0.0.0", port=port)
 
 
 # Discord Bot
@@ -186,9 +186,9 @@ def cleanup():
 
 
 if __name__ == "__main__":
-    if "PORT" in os.environ:  # Running on Render
-        threading.Thread(target=run_flask, daemon=True).start()
+    # if "PORT" in os.environ:  # Running on Render
+    #     threading.Thread(target=run_flask, daemon=True).start()
 
-    time.sleep(2)
+    # time.sleep(2)
 
     bot.run(TOKEN)
