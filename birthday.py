@@ -115,7 +115,7 @@ async def remove_birthday(interaction: discord.Interaction, name: str):
         await interaction.response.send_message(f"No birthday found for **{name}**")
 
 
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=15)
 async def check_birthdays():
     today = datetime.datetime.now().strftime("%m/%d")
     all_bdays = load_birthdays()
@@ -134,7 +134,7 @@ async def check_birthdays():
                 channel = discord.utils.get(guild.text_channels, name="announcements")
                 if channel:
                     await channel.send(
-                        f"@everyone It's **{name.title()}**'s birthday today!",
+                        f"@everyone It's **{name.title()}**'s birthday today! 🎉🎉🎉",
                         allowed_mentions=discord.AllowedMentions(everyone=True)
                     )
                     already_pinged.add(name)
