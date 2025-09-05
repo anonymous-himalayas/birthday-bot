@@ -1,36 +1,24 @@
 import discord
 from discord.ext import commands, tasks
+from discord import app_commands
 import datetime
 import json
 import os
 from dotenv import load_dotenv
 import atexit
-import re
-# from flask import Flask
-# import threading
-# import time
-
-# Mini Flask Server
-# app = Flask(__name__)
-
-# @app.route('/')
-# def home():
-#     return "OK", 200
-
-# def run_flask():
-#     port = int(os.environ.get("PORT", 5000))
-#     app.run(host="0.0.0.0", port=port)
 
 
 # Discord Bot
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID")) 
 
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+OWNER_ID = os.getenv("OWNER_ID")
+
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 notified = {}
-
 BIRTHDAYS = "birthdays.json"
 
 
@@ -68,80 +56,63 @@ def is_valid_date(date_str):
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} slash commands")
+    except Exception as e:
+        print(f"Error syncing commands: {e}")
+
     if not check_birthdays.is_running():
         check_birthdays.start()
     if not reset_notifications.is_running():
         reset_notifications.start()
 
 
-@bot.command(name="list-birthdays")
-async def list_birthdays(ctx):
-    bdays = get_guild_birthdays(ctx.guild.id)
+@bot.tree.command(name="list-birthdays", description="Show all saved birthdays in this server")
+async def list_birthdays(interaction: discord.Interaction):
+    guild_id = str(interaction.guild.id)
+    bdays = get_guild_birthdays(guild_id)
 
-    bdays = dict(sorted(bdays.items(), key=lambda item: datetime.datetime.strptime(item[1], "%m/%d"))) 
     if not bdays:
-        await ctx.send("No birthdays have been added yet.")
+        await interaction.response.send_message("No birthdays have been added yet.")
         return
 
+    bdays = dict(sorted(bdays.items(), key=lambda item: datetime.datetime.strptime(item[1], "%m/%d")))
     bday_list = "\n".join([f"{name}: {date}" for name, date in bdays.items()])
-    
-    
-    await ctx.send(f"**Birthday List:**\n```{bday_list}```")
+    await interaction.response.send_message(f"**Birthday List:**\n```{bday_list}```")
 
 
-@bot.command(name="add-birthday")
-async def add_birthday(ctx, *, args):
-    # ?sd2d2 raah
-    pattern = r'"(.*?)"\s+(\d{2}/\d{2})'
-    matches = re.findall(pattern, args)
-    
-    if not matches:
-        await ctx.send("No valid name/date pairs found. Use: `!add-birthday \"Name\" MM/DD`")
-        return
-
-    guild_id = str(ctx.guild.id)
+@bot.tree.command(name="add-birthday", description="Add a birthday for someone")
+@app_commands.describe(name="Person's name", date="Birthday in MM/DD format")
+async def add_birthday(interaction: discord.Interaction, name: str, date: str):
+    guild_id = str(interaction.guild.id)
     all_bdays = load_birthdays()
     guild_bdays = all_bdays.get(guild_id, {})
 
-    added = []
-    skipped = []
-
-    for name, date in matches:
-        if is_valid_date(date):
-            guild_bdays[name] = date
-            added.append(f"{name}: {date}")
-        else:
-            skipped.append(f"{name}: Invalid date format")
-
-    all_bdays[guild_id] = guild_bdays
-    save_birthdays(all_bdays)
-
-    msg = ""
-    if added:
-        msg += "**Birthdays added:**\n" + "\n".join(added)
-    if skipped:
-        msg += "\n**Skipped entries:**\n" + "\n".join(skipped)
-
-    await ctx.send(msg)
+    if is_valid_date(date):
+        guild_bdays[name] = date
+        all_bdays[guild_id] = guild_bdays
+        save_birthdays(all_bdays)
+        await interaction.response.send_message(f"Added birthday for **{name}** on {date}")
+    else:
+        await interaction.response.send_message("Invalid date format. Use MM/DD (e.g., 09/05)")
 
 
-
-
-@bot.command(name="remove-birthday")
-async def remove_birthday(ctx, name: str):
-    guild_id = str(ctx.guild.id)
+@bot.tree.command(name="remove-birthday", description="Remove a saved birthday")
+@app_commands.describe(name="Person's name")
+async def remove_birthday(interaction: discord.Interaction, name: str):
+    guild_id = str(interaction.guild.id)
     all_bdays = load_birthdays()
     guild_bdays = all_bdays.get(guild_id, {})
-    
-    if name in guild_bdays.keys():
+
+    if name in guild_bdays:
         del guild_bdays[name]
         all_bdays[guild_id] = guild_bdays
         save_birthdays(all_bdays)
-        notified[guild_id].discard(name)
-        await ctx.send(f"Birthday for **{name}** removed.")
+        notified.setdefault(guild_id, set()).discard(name)
+        await interaction.response.send_message(f"Removed birthday for **{name}**")
     else:
-        await ctx.send(f"No birthday found for **{name}**.")
-
+        await interaction.response.send_message(f"No birthday found for **{name}**")
 
 
 @tasks.loop(minutes=5)
@@ -153,7 +124,6 @@ async def check_birthdays():
         guild_id = str(guild.id)
         guild_bdays = all_bdays.get(guild_id, {})
 
-        # Make sure the guild has a set for tracking reported birthdays
         if guild_id not in notified:
             notified[guild_id] = set()
 
@@ -164,17 +134,16 @@ async def check_birthdays():
                 channel = discord.utils.get(guild.text_channels, name="announcements")
                 if channel:
                     await channel.send(
-                        f"@everyone It's **{name.title()}**'s birthday today! 🎉🎉🎉",
+                        f"@everyone It's **{name.title()}**'s birthday today!",
                         allowed_mentions=discord.AllowedMentions(everyone=True)
                     )
-                    already_pinged.add(name)  # Mark as reported
+                    already_pinged.add(name)
 
 
 @tasks.loop(time=datetime.time(0, 0, 0))
 async def reset_notifications():
-    for guild_id in notified.keys():
+    for guild_id in notified:
         notified[guild_id].clear()
-
 
 
 
