@@ -5,7 +5,6 @@ import datetime
 import json
 import os
 from dotenv import load_dotenv
-import atexit
 
 
 # Discord Bot
@@ -147,11 +146,7 @@ async def reset_notifications():
 
 
 
-@atexit.register
-def cleanup():
-    if os.path.exists(BIRTHDAYS):
-        with open(BIRTHDAYS, 'w') as file:
-            json.dump({}, file)
+
 
 
 if __name__ == "__main__":
